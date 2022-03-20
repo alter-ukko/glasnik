@@ -1,0 +1,14 @@
+target/
+deploy/
+.idea/
+.gradle/
+*.iml
+.DS_Store
+input/
+output/
+data/
+build/
+gradlew
+gradlew.bat
+gradle/
+Sandbox.kt
