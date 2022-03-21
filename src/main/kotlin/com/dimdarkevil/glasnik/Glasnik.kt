@@ -242,7 +242,9 @@ object Glasnik {
             HttpMethod.GET -> doGet(client, url, headers)
             HttpMethod.POST -> {
                 val body = if (bodyFilename.isNotEmpty()) {
-                    File(bodiesDir, bodyFilename).readText(Charsets.UTF_8)
+                    File(bodiesDir, bodyFilename)
+                        .readText(Charsets.UTF_8)
+                        .substituteVars(vars)
                 } else {
                     call.body?.substituteVars(vars)
                 } ?: throw RuntimeException("POST with no body specified")

@@ -30,7 +30,7 @@ glasnik {call_name} [{body_filename}] - issue a call in the current workspace
 glasnik help|-h|--help - show this message
 ```
 
-`glasnik` uses "workspaces" and "vars" to manage information. A workspace is just a set of calls (usually to a particular REST API). When defining calls, you can use values in curly braces, which get filled in from the current vars file. In your calls, you can also specify values to be extracted from responses. These are also treated like vars, and substituted in
+`glasnik` uses "workspaces" and "vars" to manage information. A workspace is just a set of calls (usually to a particular REST API). When defining calls, you can use values in curly braces, which get filled in from the current vars file. In your calls, you can also specify values to be extracted from responses. These are treated like vars. They're persisted until cleared, and their current values get substituted into URLs, headers and bodies in the same way as vars.
 
 Calls are stored in `~/.glasnik/{workspace_name}/calls.yml`.
 
