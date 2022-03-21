@@ -230,13 +230,13 @@ object Glasnik {
         val call = calls[callName] ?: throw RuntimeException("No call named ${callName} in workspace ${config.currentWorkspace}")
         val url = call.url.substituteVars(vars)
         val headers = call.headers?.mapValues { it.value.substituteVars(vars) }
-        println("-=-= REQUEST")
+        println("-=-= REQUEST (${config.currentWorkspace}.${workspaceConfig.currentVars})")
         println("${GREEN}${url}${RESET}")
         headers?.forEach { (name, value) ->
             println("${BOLD}${name}${RESET}: $value")
         }
         println()
-        println("-=-= RESPONSE")
+        println("-=-= RESPONSE (${config.currentWorkspace}.${workspaceConfig.currentVars})")
         val client = OkHttpClient()
         val response = when (call.method) {
             HttpMethod.GET -> doGet(client, url, headers)
@@ -251,7 +251,7 @@ object Glasnik {
                 doPost(client, url, body, call.contentType, headers)
             }
         }
-        println(response.code)
+        println("${BOLD}${YELLOW}${response.code}${RESET}")
         val responseHeaders = response.headers
         responseHeaders.forEach { (name, value) ->
             println("${BOLD}${name}${RESET}: $value")
