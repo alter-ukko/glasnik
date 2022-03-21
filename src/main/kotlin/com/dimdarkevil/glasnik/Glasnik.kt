@@ -45,7 +45,7 @@ object Glasnik {
                 Command.HELP -> println(help())
                 Command.CALL -> {
                     val realArgs = if (hasCommand) args.drop(1) else args.toList()
-                    val bodyFilename = if (args.size > 1) args[1] else ""
+                    val bodyFilename = if (realArgs.size > 1) realArgs[1] else ""
                     call(config, realArgs[0], bodyFilename)
                 }
             }
@@ -223,6 +223,7 @@ object Glasnik {
         if (config.currentWorkspace.isEmpty()) throw RuntimeException("No current workspace")
         val workspaceConfig = loadWorkspaceConfig(config.currentWorkspace)
         if (workspaceConfig.currentVars.isEmpty()) throw RuntimeException("No current vars in workspace ${config.currentWorkspace}")
+        val bodiesDir = File(File(configDir, config.currentWorkspace), "bodies")
         val vars = loadVars(config.currentWorkspace, workspaceConfig.currentVars)
             .plus(workspaceConfig.extractedVars)
         val calls = loadWorkspaceCalls(config.currentWorkspace)
@@ -241,7 +242,7 @@ object Glasnik {
             HttpMethod.GET -> doGet(client, url, headers)
             HttpMethod.POST -> {
                 val body = if (bodyFilename.isNotEmpty()) {
-                    File(bodyFilename).readText(Charsets.UTF_8)
+                    File(bodiesDir, bodyFilename).readText(Charsets.UTF_8)
                 } else {
                     call.body?.substituteVars(vars)
                 } ?: throw RuntimeException("POST with no body specified")
@@ -347,7 +348,7 @@ object Glasnik {
     private fun getCallsFile(workspace: String) : File {
         val workspaceDir = File(configDir, workspace)
         if (!workspaceDir.exists()) workspaceDir.mkdirs()
-        return File(workspaceDir, "${workspace}.yaml")
+        return File(workspaceDir, "calls.yml")
     }
 
     private fun getVarsInCalls(calls: Map<String,CallConfig>) : Set<String> {
@@ -445,7 +446,7 @@ object Glasnik {
             |${BOLD}${YELLOW}glasnik list${RESET} - list workspaces
             |${BOLD}${YELLOW}glasnik calls${RESET} - list calls in the current workspace
             |${BOLD}${YELLOW}glasnik clear${RESET} - clear extracted vars in the current workspace
-			|${BOLD}${YELLOW}glasnik {call_name} [{body_filename}]${RESET} - issue a call in the current workspace
+			|${BOLD}${YELLOW}glasnik [call] {call_name} [{body_filename}]${RESET} - issue a call in the current workspace
             |${BOLD}${YELLOW}glasnik help|-h|--help${RESET} - show this message
 		""".trimMargin("|")
     }
