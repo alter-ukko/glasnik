@@ -64,7 +64,6 @@ org:
   url: "{protocol}://{host}/v1/org/{orgSlug}"
   headers:
     Authorization: "Bearer {token}"
-
 ```
 
 There are two calls here: `login` and `org`. Between the two of these, all the possible properties of a call definition are used.
@@ -110,6 +109,41 @@ To switch between "local" and "remote" vars, I would run `glasnik use .local` an
 The only major feature not covered in this example is request bodies. In the above `login` call, I included the body in the configuration for the call itself, since it's always the same. And all I have to do to login is run `glasnik login`. But I can also do posts with varying bodies.
 
 When I added the `charthop` workspace, a `~/.glasnik/charthop/bodies` directory was automatically created. I can place a body file (like `some_post.json`) in this folder, and then use that body with something like `glasnik some_call some_post.json`. If you provide a body file name it will override any body defined in the call file itself. The content in any body file should be consistent with the `contentType` defined for the call you're making.
+On each call, `bodySubstituteVars` can be set to false to prevent it from being read as UTF-8 and having variables replaced.
 
+### multipart/form-data
 
+Example to POST `multipart/form-data`:
 
+```yaml
+formDataTest:
+  url: "{protocol}://{host}/v1/media"
+  headers:
+    Authorization: "Bearer {token}"
+  method: "POST"
+  contentType: "multipart/form-data"
+  multipartFiles:
+    -
+      name: "file"
+      path: "kitten.jpg" # relative to `~/.glasnik/{workspace}/bodies/`
+      filename: "babycat.jpg" # If not set, use the name of file indicated by `path`. Default: not set
+      contentType: "image/jpeg" # If not set, will try to determine by extension. Default: not set
+      substituteVars: false # If true, read file as UTF-8 and substitute vars. Default: false
+```
+
+### application/x-www-form-urlencoded
+
+Example to POST `application/x-www-form-urlencoded`:
+
+```yaml
+formDataTest:
+  url: "{protocol}://{host}/v1/something"
+  headers:
+    Authorization: "Bearer {token}"
+  method: "POST"
+  contentType: "application/x-www-form-urlencoded"
+  form:
+    -
+      foo: "bar"
+      hello: "world"
+```
