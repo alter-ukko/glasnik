@@ -156,7 +156,7 @@ object Glasnik {
 
     private fun edit(config: Config, arg: String?) {
         val editor = config.editor.ifEmpty { System.getenv("EDITOR") ?: "" }
-        if (editor.isEmpty()) throw RuntimeException("No editor set in ~/.glasnik/config.yml and no EDITOR env var")
+        if (editor.isEmpty()) throw RuntimeException("No editor set in ~/.glasnik/glasnik.yml and no EDITOR env var")
         val (workspace, vars) = when {
             arg == null -> Pair(config.currentWorkspace, "")
             arg.startsWith(".") -> Pair(config.currentWorkspace, arg.substring(1))
