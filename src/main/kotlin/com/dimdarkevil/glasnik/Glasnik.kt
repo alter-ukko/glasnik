@@ -5,20 +5,28 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import okhttp3.FormBody
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.io.File
 import java.io.FileReader
 import java.io.FileWriter
+import java.nio.file.Files
 import java.util.*
 import kotlin.system.exitProcess
 
 object Glasnik {
     private val configDir = File(HOME, ".glasnik")
     private val om = ObjectMapper(YAMLFactory())
+        .registerKotlinModule()
         .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
     private val cmds = Command.values().map { it.name }.toSet()
     private val cmdsNeedingArg = setOf(Command.USE, Command.ADD, Command.DELETE)
@@ -45,7 +53,7 @@ object Glasnik {
                 Command.HELP -> println(help())
                 Command.CALL -> {
                     val realArgs = if (hasCommand) args.drop(1) else args.toList()
-                    val bodyFilename = if (realArgs.size > 1) realArgs[1] else ""
+                    val bodyFilename = if (realArgs.size > 1) realArgs[1] else null
                     call(config, realArgs[0], bodyFilename)
                 }
             }
@@ -219,7 +227,7 @@ object Glasnik {
         }
     }
 
-    private fun call(config: Config, callName: String, bodyFilename: String) {
+    private fun call(config: Config, callName: String, bodyFilename: String?) {
         if (config.currentWorkspace.isEmpty()) throw RuntimeException("No current workspace")
         val workspaceConfig = loadWorkspaceConfig(config.currentWorkspace)
         if (workspaceConfig.currentVars.isEmpty()) throw RuntimeException("No current vars in workspace ${config.currentWorkspace}")
@@ -241,14 +249,69 @@ object Glasnik {
         val response = when (call.method) {
             HttpMethod.GET -> doGet(client, url, headers)
             HttpMethod.POST -> {
-                val body = if (bodyFilename.isNotEmpty()) {
-                    File(bodiesDir, bodyFilename)
-                        .readText(Charsets.UTF_8)
-                        .substituteVars(vars)
-                } else {
-                    call.body?.substituteVars(vars)
-                } ?: throw RuntimeException("POST with no body specified")
-                doPost(client, url, body, call.contentType, headers)
+                val body:RequestBody =
+                    when {
+                        call.multipartFiles != null -> { // multipart/*
+                            if ( ! call.contentType.startsWith( "multipart/") ) {
+                                error("If call.multipartFiles is set, contentType must be multipart/*")
+                            }
+                            MultipartBody.Builder().apply {
+                                call.multipartFiles.forEach { multipartFile ->
+                                    val file = File(bodiesDir, multipartFile.path)
+                                    val contentType:String? = multipartFile.contentType
+                                        ?: Files.probeContentType(file.toPath())
+                                    val body =
+                                        if ( multipartFile.substituteVars ) {
+                                            file
+                                                .readText(Charsets.UTF_8)
+                                                .substituteVars(vars)
+                                                .toRequestBody(contentType?.toMediaTypeOrNull())
+                                        } else {
+                                            file.asRequestBody(contentType?.toMediaTypeOrNull())
+                                        }
+                                    addFormDataPart(
+                                        name = multipartFile.name,
+                                        filename = multipartFile.filename ?: file.name,
+                                        body = body
+                                    )
+                                }
+                                setType(call.contentType.toMediaType())
+                            }.build()
+                        }
+                        call.form != null -> { // application/x-www-form-urlencoded
+                            if ( call.contentType != "application/x-www-form-urlencoded" ) {
+                                error("If call.form is set, contentType must be application/x-www-form-urlencoded")
+                            }
+                            FormBody.Builder().apply {
+                                call.form.forEach { (k,v) ->
+                                    add(k,v.substituteVars(vars))
+                                }
+                            }.build()
+                        }
+                        bodyFilename != null -> {
+                            val file = File(bodiesDir, bodyFilename)
+                            if ( call.bodySubstituteVars ) {
+                                file
+                                    .readText(Charsets.UTF_8)
+                                    .substituteVars(vars)
+                                    .toRequestBody(call.contentType.toMediaTypeOrNull())
+                            } else {
+                                file.asRequestBody(call.contentType.toMediaTypeOrNull())
+                            }
+                        }
+                        else -> {
+                            call.body
+                                ?.let {
+                                    if ( call.bodySubstituteVars ) {
+                                        it.substituteVars(vars)
+                                    } else {
+                                        it
+                                    }
+                                }
+                                ?.toRequestBody(call.contentType.toMediaTypeOrNull())
+                        }
+                    } ?: throw RuntimeException("POST with no body specified")
+                doPost(client, url, body, headers)
             }
         }
         println("${BOLD}${YELLOW}${response.code}${RESET}")
@@ -295,10 +358,10 @@ object Glasnik {
         return client.newCall(req).execute()
     }
 
-    private fun doPost(client: OkHttpClient, url: String, body: String, contentType: String, headers: Map<String,String>?) : Response {
+    private fun doPost(client: OkHttpClient, url: String, body: RequestBody, headers: Map<String,String>?) : Response {
         val req = Request.Builder()
             .url(url)
-            .post(body.toRequestBody(contentType.toMediaTypeOrNull()))
+            .post(body)
             .apply {
                 headers?.forEach { (name, value) -> addHeader(name, value) }
             }.build()
