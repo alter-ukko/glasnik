@@ -350,7 +350,6 @@ object Glasnik {
                 ResponseExtractType.JSON_BODY -> {
                     responseBody?.let { body ->
                         JsonPath.read<String>(body, extract.value).let {
-                            println("-=-= extracted ${extract.value} ${it} to ${extract.to}")
                             workspaceConfig.extractedVars[extract.to] = it
                             changedWorkspaceConfig = true
                         }
