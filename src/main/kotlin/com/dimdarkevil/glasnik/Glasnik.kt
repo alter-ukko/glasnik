@@ -6,6 +6,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import com.jayway.jsonpath.JsonPath
 import okhttp3.FormBody
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -49,6 +50,7 @@ object Glasnik {
                 Command.UPDATE -> update(config)
                 Command.LIST -> list(config)
                 Command.CALLS -> calls(config)
+                Command.VARS -> vars(config)
                 Command.CLEAR -> clear(config)
                 Command.HELP -> println(help())
                 Command.CALL -> {
@@ -212,9 +214,26 @@ object Glasnik {
 
     private fun calls(config: Config) {
         if (config.currentWorkspace.isEmpty()) throw RuntimeException("No current workspace")
-        println("calls in ${config.currentWorkspace}:")
+        println("${BOLD}calls in ${config.currentWorkspace}:${RESET}")
         loadWorkspaceCalls(config.currentWorkspace).forEach { (callName, call) ->
             println("${YELLOW}$callName${RESET} -> ${call.method} ${call.url}")
+        }
+    }
+
+    private fun vars(config: Config) {
+        if (config.currentWorkspace.isEmpty()) throw RuntimeException("No current workspace")
+        loadWorkspaceConfig(config.currentWorkspace).let { workspaceConfig ->
+            if (workspaceConfig.currentVars.isEmpty())
+                throw RuntimeException("No current vars in workspace ${config.currentWorkspace}")
+            println("${BOLD}vars in ${config.currentWorkspace}.${workspaceConfig.currentVars}:${RESET}")
+            val vars = loadVars(config.currentWorkspace, workspaceConfig.currentVars)
+            vars.keys.sorted().forEach { varKey ->
+                println("${YELLOW}${varKey}${RESET} -> ${vars[varKey]}")
+            }
+            println("${BOLD}extracted vars in ${config.currentWorkspace}.${workspaceConfig.currentVars}:${RESET}")
+            workspaceConfig.extractedVars.keys.sorted().forEach { varKey ->
+                println("${YELLOW}${varKey}${RESET} -> ${workspaceConfig.extractedVars[varKey]}")
+            }
         }
     }
 
@@ -330,13 +349,10 @@ object Glasnik {
             when (extract.from) {
                 ResponseExtractType.JSON_BODY -> {
                     responseBody?.let { body ->
-                        //println("body is $body")
-                        jacksonObjectMapper().readTree(body).let { obj ->
-                            //println("obj is $obj")
-                            obj[extract.value]?.textValue()?.let {
-                                workspaceConfig.extractedVars[extract.to] = it
-                                changedWorkspaceConfig = true
-                            }
+                        JsonPath.read<String>(body, extract.value).let {
+                            println("-=-= extracted ${extract.value} ${it} to ${extract.to}")
+                            workspaceConfig.extractedVars[extract.to] = it
+                            changedWorkspaceConfig = true
                         }
                     }
                 }
@@ -510,6 +526,7 @@ object Glasnik {
             |${BOLD}${YELLOW}glasnik update${RESET} - update vars in the current workspace to include anything in calls
             |${BOLD}${YELLOW}glasnik list${RESET} - list workspaces
             |${BOLD}${YELLOW}glasnik calls${RESET} - list calls in the current workspace
+            |${BOLD}${YELLOW}glasnik vars${RESET} - list vars in the current workspace
             |${BOLD}${YELLOW}glasnik clear${RESET} - clear extracted vars in the current workspace
 			|${BOLD}${YELLOW}glasnik [call] {call_name} [{body_filename}]${RESET} - issue a call in the current workspace
             |${BOLD}${YELLOW}glasnik help|-h|--help${RESET} - show this message

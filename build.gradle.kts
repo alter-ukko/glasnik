@@ -14,11 +14,12 @@ repositories {
 }
 
 dependencies {
-    implementation("com.offbytwo:docopt:0.6.0.20150202")
     implementation(platform("com.squareup.okhttp3:okhttp-bom:4.9.3"))
     implementation("com.squareup.okhttp3:okhttp")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.1")
     implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.13.2")
+    implementation("com.jayway.jsonpath:json-path:2.7.0")
+    implementation("org.slf4j:slf4j-simple:1.7.36")
     testImplementation(kotlin("test"))
 }
 

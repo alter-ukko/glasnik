@@ -9,6 +9,7 @@ enum class Command {
     UPDATE,
     LIST,
     CALLS,
+    VARS,
     CLEAR,
     CALL,
     HELP,
