@@ -216,7 +216,11 @@ object Glasnik {
         if (config.currentWorkspace.isEmpty()) throw RuntimeException("No current workspace")
         println("${BOLD}calls in ${config.currentWorkspace}:${RESET}")
         loadWorkspaceCalls(config.currentWorkspace).forEach { (callName, call) ->
-            println("${YELLOW}$callName${RESET} -> ${call.method} ${call.url}")
+            if (call.extracts.isNullOrEmpty()) {
+                println("${YELLOW}$callName${RESET} -> ${call.method} ${call.url}")
+            } else {
+                println("${YELLOW}$callName${RESET} -> ${call.method} ${call.url} [extracts ${GREEN}${call.extracts.map { it.to }.joinToString()}${RESET}]")
+            }
         }
     }
 
