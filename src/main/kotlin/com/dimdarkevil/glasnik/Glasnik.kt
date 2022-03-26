@@ -337,7 +337,10 @@ object Glasnik {
                 doPost(client, url, body, headers)
             }
         }
-        println("${BOLD}${YELLOW}${response.code}${RESET}")
+        httpResponseCodes[response.code]?.let {
+            println("${BOLD}${YELLOW}${response.code}${RESET} ($it)")
+        } ?: println("${BOLD}${YELLOW}${response.code}${RESET}")
+
         val responseHeaders = response.headers
         responseHeaders.forEach { (name, value) ->
             println("${BOLD}${name}${RESET}: $value")
