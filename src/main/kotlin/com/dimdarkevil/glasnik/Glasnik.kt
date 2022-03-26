@@ -209,6 +209,11 @@ object Glasnik {
         configDir.listFiles { f -> f.isDirectory }?.filter { getWorkspaceConfigFile(it.name).exists() }?.forEach { ws ->
             val workspace = if (ws.name == config.currentWorkspace) "*${ws.name}" else ws.name
             println("${GREEN}$workspace${RESET}")
+            val workspaceConfig = loadWorkspaceConfig(ws.name)
+            ws.listFiles { f -> f.extension == "properties" }?.forEach { vf ->
+                val varFile = if (vf.nameWithoutExtension == workspaceConfig.currentVars) "*${vf.nameWithoutExtension}" else vf.nameWithoutExtension
+                println("  $varFile")
+            }
         } ?: println("No workspaces exist")
     }
 
