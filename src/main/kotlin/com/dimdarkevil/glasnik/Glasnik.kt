@@ -3,7 +3,6 @@ package com.dimdarkevil.glasnik
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import com.jayway.jsonpath.JsonPath
@@ -274,7 +273,7 @@ object Glasnik {
         println()
         println("-=-= RESPONSE (${config.currentWorkspace}.${workspaceConfig.currentVars})")
         val client = OkHttpClient()
-        val response = when (call.method) {
+        val (response, dt) = stopwatch { when (call.method) {
             HttpMethod.GET -> doGet(client, url, headers)
             HttpMethod.POST -> {
                 val body:RequestBody =
@@ -341,7 +340,8 @@ object Glasnik {
                     } ?: throw RuntimeException("POST with no body specified")
                 doPost(client, url, body, headers)
             }
-        }
+        }}
+
         httpResponseCodes[response.code]?.let {
             println("${BOLD}${YELLOW}${response.code}${RESET} ($it)")
         } ?: println("${BOLD}${YELLOW}${response.code}${RESET}")
@@ -375,6 +375,10 @@ object Glasnik {
                 }
             }
         }
+        if (config.showCallTimes) {
+            println("${CYAN}call took:${RESET} ${dt.toDurationStr()}")
+        }
+
         if (changedWorkspaceConfig) saveWorkspaceConfig(config.currentWorkspace, workspaceConfig)
     }
 
@@ -543,4 +547,36 @@ object Glasnik {
             |${BOLD}${YELLOW}glasnik help|-h|--help${RESET} - show this message
 		""".trimMargin("|")
     }
+
+    fun Long.toDurationStr() : String {
+        val durations = listOf(
+            Pair("days", 86400000),
+            Pair("hours", 3600000),
+            Pair("minutes", 60000),
+            Pair("seconds", 1000),
+            Pair("ms", 1)
+        )
+        var ms = this
+        val sb = StringBuilder()
+        for (p in durations) {
+            var label = p.first
+            val dur = p.second
+            if (ms >= dur) {
+                val n = (ms / dur)
+                ms -= (dur * n)
+                if (sb.isNotEmpty()) sb.append(", ")
+                if (n == 1L) label = label.substring(0, label.length-1)
+                sb.append("$n $label")
+            }
+        }
+        return sb.toString()
+    }
+
+    fun <T>stopwatch(fn: () -> T) : Pair<T,Long> {
+        val st = System.currentTimeMillis()
+        return fn().let {
+            Pair(it, (System.currentTimeMillis() - st))
+        }
+    }
+
 }
