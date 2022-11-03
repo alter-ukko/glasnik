@@ -12,5 +12,6 @@ enum class Command {
     VARS,
     CLEAR,
     CALL,
+    OUTPUT,
     HELP,
 }
