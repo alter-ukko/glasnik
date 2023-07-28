@@ -6,6 +6,7 @@ enum class Command {
     ADD,
     DELETE,
     EDIT,
+    SET,
     UPDATE,
     LIST,
     CALLS,
