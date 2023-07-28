@@ -34,6 +34,7 @@ object Glasnik {
         .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
     private val cmds = Command.values().map { it.name }.toSet()
     private val cmdsNeedingArg = setOf(Command.USE, Command.ADD, Command.DELETE)
+    private val cmdsNeedingTwoArgs = setOf(Command.SET)
 
     @JvmStatic
     fun main(args: Array<String>) {
@@ -43,13 +44,15 @@ object Glasnik {
             val firstarg = if (args.isEmpty()) "STATUS" else args[0].uppercase()
             val hasCommand = (cmds.contains(firstarg))
             val command = if (hasCommand) Command.valueOf(firstarg) else Command.CALL
-            if (command in cmdsNeedingArg && args.size < 2) throw RuntimeException("${command} requires another argument")
+            if (command in cmdsNeedingTwoArgs && args.size < 3) throw RuntimeException("${command} requires two arguments after the command")
+            if (command in cmdsNeedingArg && args.size < 2) throw RuntimeException("${command} requires an argument after the command")
             when (command) {
                 Command.STATUS -> status(config)
                 Command.USE -> use(config, args[1])
                 Command.ADD -> add(config, args[1])
                 Command.DELETE -> delete(config, args[1])
                 Command.EDIT -> edit(config, if (args.size > 1) args[1] else null)
+                Command.SET -> set(config, args[1], args[2])
                 Command.UPDATE -> update(config)
                 Command.LIST -> list(config)
                 Command.CALLS -> calls(config)
@@ -78,9 +81,11 @@ object Glasnik {
         } catch (e: Exception) {
             "*no vars selected*"
         }
+        val outputDir = if (config.outputDest == OutputDest.file) " ${config.outputDir}" else ""
         val msg = """
             workspace: $workspace
             vars file: $vars
+            output destination: ${config.outputDest}${outputDir}
         """.trimIndent()
         println(msg)
     }
@@ -186,6 +191,19 @@ object Glasnik {
             // editing vars
             val varsFile = getVarsFile(workspace, vars)
             execBash(editor, listOf(varsFile.canonicalPath), true)
+        }
+    }
+
+    private fun set(config: Config, varName: String, value: String) {
+        if (config.currentWorkspace.isEmpty()) throw RuntimeException("No current workspace")
+        val workspaceConfig = loadWorkspaceConfig(config.currentWorkspace)
+        val vars = loadVars(config.currentWorkspace, workspaceConfig.currentVars)
+        if (workspaceConfig.extractedVars[varName] != null) {
+            workspaceConfig.extractedVars[varName] = value
+            saveWorkspaceConfig(config.currentWorkspace, workspaceConfig)
+        } else {
+            vars[varName] = value
+            saveVars(config.currentWorkspace, workspaceConfig.currentVars, vars)
         }
     }
 
@@ -590,6 +608,7 @@ object Glasnik {
             |${BOLD}${YELLOW}glasnik edit${RESET} - edit calls in the current workspace
             |${BOLD}${YELLOW}glasnik edit {workspace_name}.{vars_name}${RESET} - edit vars in the specified workspace
             |${BOLD}${YELLOW}glasnik edit .{vars_name}${RESET} - edit vars in the current workspace
+            |${BOLD}${YELLOW}glasnik set {var_name} {value}${RESET} - set the value of a var in the current workspace
             |${BOLD}${YELLOW}glasnik update${RESET} - update vars in the current workspace to include anything in calls
             |${BOLD}${YELLOW}glasnik list${RESET} - list workspaces
             |${BOLD}${YELLOW}glasnik calls${RESET} - list calls in the current workspace
