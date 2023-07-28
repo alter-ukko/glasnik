@@ -2,6 +2,7 @@ package com.dimdarkevil.glasnik
 
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
@@ -20,6 +21,9 @@ import java.io.File
 import java.io.FileReader
 import java.io.FileWriter
 import java.nio.file.Files
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 import java.util.*
 import kotlin.system.exitProcess
 
@@ -60,6 +64,7 @@ object Glasnik {
                     val bodyFilename = if (realArgs.size > 1) realArgs[1] else null
                     call(config, realArgs[0], bodyFilename)
                 }
+                Command.OUTPUT -> setOutput(config, if (args.size > 1) args[1] else null)
             }
         } catch (e: Exception) {
             println(e.message)
@@ -76,9 +81,11 @@ object Glasnik {
         } catch (e: Exception) {
             "*no vars selected*"
         }
+        val outputDir = if (config.outputDest == OutputDest.file) " ${config.outputDir}" else ""
         val msg = """
             workspace: $workspace
             vars file: $vars
+            output destination: ${config.outputDest}${outputDir}
         """.trimIndent()
         println(msg)
     }
@@ -366,10 +373,31 @@ object Glasnik {
         responseHeaders.forEach { (name, value) ->
             println("${BOLD}${name}${RESET}: $value")
         }
-        val responseBody = response.body?.string()
+        val contentType = response.headers["Content-Type"] ?: "text/plain"
+        val responseBody = response.body?.string()?.let {
+            if (contentType.endsWith("/json", true)) {
+                val om = ObjectMapper().registerKotlinModule()
+                    .configure(SerializationFeature.INDENT_OUTPUT, true)
+                try {
+                    om.readTree(it).toPrettyString()
+                } catch (e: Exception) {
+                    it
+                }
+            } else it
+        }
         responseBody?.let { rb ->
-            if (response.headers.size > 0) println()
-            println(rb)
+            when (config.outputDest) {
+                OutputDest.console -> {
+                    if (response.headers.size > 0) println()
+                    println(rb)
+                }
+                OutputDest.file -> {
+                    if (response.headers.size > 0) println()
+                    val outFile = writeResponseBodyToFile(callName, rb, contentType, config)
+                    println("wrote response body to: file://${outFile.canonicalPath}")
+                }
+                else -> {}
+            }
         }
         var changedWorkspaceConfig = false
         call.extracts?.forEach { extract ->
@@ -398,6 +426,15 @@ object Glasnik {
         if (changedWorkspaceConfig) saveWorkspaceConfig(config.currentWorkspace, workspaceConfig)
     }
 
+    private fun writeResponseBodyToFile(callName: String, body: String, contentType: String, config: Config) : File {
+        val ext = if (contentType == "text/plain") "txt" else contentType.split(";").first().split("/").last()
+        val outDir = config.outputDir.fileReplacingTilde()
+        val outFile = File(outDir, "${config.currentWorkspace}/${callName}_${zonedNowString()}.${ext}")
+        outFile.parentFile.mkdirs()
+        outFile.writeText(body)
+        return outFile
+    }
+
     private fun doGet(client: OkHttpClient, url: String, headers: Map<String,String>?) : Response {
         val req = Request.Builder().url(url).apply {
             headers?.forEach { (name, value) -> addHeader(name, value) }
@@ -413,6 +450,23 @@ object Glasnik {
                 headers?.forEach { (name, value) -> addHeader(name, value) }
             }.build()
         return client.newCall(req).execute()
+    }
+
+    private fun setOutput(config: Config, outputDestStr: String?) {
+        outputDestStr?.let {
+            val outDest = try {
+                OutputDest.valueOf(it.lowercase())
+            } catch (e: Exception) {
+                error("invalid output dest '${outputDestStr}'. Must be one of ${OutputDest.values()}")
+            }
+            config.outputDest = outDest
+            saveConfig(config)
+            val outDestFileLoc = if (outDest == OutputDest.file) " (${config.outputDir})" else ""
+            println("response body output will now go to ${outDest}${outDestFileLoc}")
+        } ?: run {
+            val outDestFileLoc = if (config.outputDest == OutputDest.file) " (${config.outputDir})" else ""
+            println("response body output goes to ${config.outputDest}${outDestFileLoc}")
+        }
     }
 
     private fun loadConfig() = getConfigFile().let { configFile ->
@@ -561,6 +615,7 @@ object Glasnik {
             |${BOLD}${YELLOW}glasnik vars${RESET} - list vars in the current workspace
             |${BOLD}${YELLOW}glasnik clear${RESET} - clear extracted vars in the current workspace
 			|${BOLD}${YELLOW}glasnik [call] {call_name} [{body_filename}]${RESET} - issue a call in the current workspace
+            |${BOLD}${YELLOW}glasnik output console|file|none${RESET} - send response body output to a different destination
             |${BOLD}${YELLOW}glasnik help|-h|--help${RESET} - show this message
 		""".trimMargin("|")
     }
@@ -596,4 +651,13 @@ object Glasnik {
         }
     }
 
+    fun zonedNowString(zoneId: ZoneId = ZoneId.of("UTC")) =
+        ZonedDateTime.now(zoneId).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+            .replace(Regex("[\\:\\-\\.]"), "_")
+
+    fun String.fileReplacingTilde() : File = if (this.startsWith("~/")) {
+        File(HOME, this.substring(2))
+    } else {
+        File(this)
+    }
 }
