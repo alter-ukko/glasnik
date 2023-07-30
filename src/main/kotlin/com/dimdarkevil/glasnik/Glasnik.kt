@@ -198,7 +198,8 @@ object Glasnik {
         if (config.currentWorkspace.isEmpty()) throw RuntimeException("No current workspace")
         val workspaceConfig = loadWorkspaceConfig(config.currentWorkspace)
         val vars = loadVars(config.currentWorkspace, workspaceConfig.currentVars)
-        if (workspaceConfig.extractedVars[varName] != null) {
+        val extractableVars = extractableVars(config.currentWorkspace)
+        if (extractableVars.contains(varName)) {
             workspaceConfig.extractedVars[varName] = value
             saveWorkspaceConfig(config.currentWorkspace, workspaceConfig)
         } else {
@@ -264,6 +265,14 @@ object Glasnik {
             println("${BOLD}extracted vars in ${config.currentWorkspace}.${workspaceConfig.currentVars}:${RESET}")
             workspaceConfig.extractedVars.keys.sorted().forEach { varKey ->
                 println("${YELLOW}${varKey}${RESET} -> ${workspaceConfig.extractedVars[varKey]}")
+            }
+            extractableVars(config.currentWorkspace).filter { workspaceConfig.extractedVars[it] == null }.let { unextracted ->
+                if (unextracted.isNotEmpty()) {
+                    println("${BOLD}unextracted vars in ${config.currentWorkspace}.${workspaceConfig.currentVars}:${RESET}")
+                    unextracted.forEach { varKey ->
+                        println("${YELLOW}${varKey}${RESET}")
+                    }
+                }
             }
         }
     }
@@ -532,6 +541,13 @@ object Glasnik {
             re.findAll(headerVal).map { mr -> mr.groupValues[1] }
         }
         return (urlVars + bodyVars + headerVars).filter { !extractVars.contains(it) }.toSet()
+    }
+
+    private fun extractableVars(workspace: String): List<String> {
+        val calls = loadWorkspaceCalls(workspace)
+        return calls.values.mapNotNull { it.extracts }.flatMap { extracts ->
+            extracts.map { it.to }
+        }.toSet().sorted()
     }
 
     private fun loadVars(workspace: String, varsName: String) : MutableMap<String,String> {
