@@ -307,6 +307,8 @@ object Glasnik {
         val client = OkHttpClient()
         val (response, dt) = stopwatch { when (call.method) {
             HttpMethod.GET -> doGet(client, url, headers)
+            HttpMethod.PATCH,
+            HttpMethod.PUT,
             HttpMethod.POST -> {
                 val body:RequestBody =
                     when {
@@ -370,7 +372,8 @@ object Glasnik {
                                 ?.toRequestBody(call.contentType.toMediaTypeOrNull())
                         }
                     } ?: throw RuntimeException("POST with no body specified")
-                doPost(client, url, body, headers)
+                // could be a post, a put or a patch
+                doPost(client, call.method, url, body, headers)
             }
         }}
 
@@ -451,10 +454,16 @@ object Glasnik {
         return client.newCall(req).execute()
     }
 
-    private fun doPost(client: OkHttpClient, url: String, body: RequestBody, headers: Map<String,String>?) : Response {
+    private fun doPost(client: OkHttpClient, method: HttpMethod, url: String, body: RequestBody, headers: Map<String,String>?) : Response {
         val req = Request.Builder()
-            .url(url)
-            .post(body)
+            .url(url).let {
+                when (method) {
+                    HttpMethod.POST -> it.post(body)
+                    HttpMethod.PATCH -> it.patch(body)
+                    HttpMethod.PUT -> it.put(body)
+                    else -> throw RuntimeException("method ${method} isn't a post-like method")
+                }
+            }
             .apply {
                 headers?.forEach { (name, value) -> addHeader(name, value) }
             }.build()
