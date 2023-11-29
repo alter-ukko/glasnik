@@ -48,6 +48,7 @@ object Glasnik {
             if (command in cmdsNeedingArg && args.size < 2) throw RuntimeException("${command} requires an argument after the command")
             when (command) {
                 Command.STATUS -> status(config)
+                Command.CONFIG -> editConfig(config)
                 Command.USE -> use(config, args[1])
                 Command.ADD -> add(config, args[1])
                 Command.DELETE -> delete(config, args[1])
@@ -59,10 +60,11 @@ object Glasnik {
                 Command.VARS -> vars(config)
                 Command.CLEAR -> clear(config)
                 Command.HELP -> println(help())
-                Command.CALL -> {
+                Command.CALL, Command.E, Command.S -> {
+                    val realCommand = if (hasCommand) Command.valueOf(firstarg) else Command.CALL
                     val realArgs = if (hasCommand) args.drop(1) else args.toList()
                     val bodyFilename = if (realArgs.size > 1) realArgs[1] else null
-                    call(config, realArgs[0], bodyFilename)
+                    call(config, realCommand, realArgs[0], bodyFilename)
                 }
                 Command.OUTPUT -> setOutput(config, if (args.size > 1) args[1] else null)
             }
@@ -88,6 +90,18 @@ object Glasnik {
             output destination: ${config.outputDest}${outputDir}
         """.trimIndent()
         println(msg)
+    }
+
+    private fun editConfig(config: Config) {
+        getConfigFile().let { configFile ->
+            if (configFile.exists()) {
+                val editor = config.editor.ifEmpty { System.getenv("EDITOR") ?: "" }
+                if (editor.isEmpty()) throw RuntimeException("No editor set in ~/.glasnik/glasnik.yml and no EDITOR env var")
+                execBash(editor, listOf(configFile.canonicalPath), true)
+            } else {
+                println("config file ${configFile.canonicalPath} does not exist")
+            }
+        }
     }
 
     private fun use(config: Config, arg: String) {
@@ -286,7 +300,7 @@ object Glasnik {
         }
     }
 
-    private fun call(config: Config, callName: String, bodyFilename: String?) {
+    private fun call(config: Config, actualCommand: Command, callName: String, bodyFilename: String?) {
         if (config.currentWorkspace.isEmpty()) throw RuntimeException("No current workspace")
         val workspaceConfig = loadWorkspaceConfig(config.currentWorkspace)
         if (workspaceConfig.currentVars.isEmpty()) throw RuntimeException("No current vars in workspace ${config.currentWorkspace}")
@@ -398,17 +412,18 @@ object Glasnik {
             } else it
         }
         responseBody?.let { rb ->
-            when (config.outputDest) {
-                OutputDest.console -> {
-                    if (response.headers.size > 0) println()
-                    println(rb)
+            if (config.outputDest == OutputDest.file || actualCommand == Command.S || actualCommand == Command.E) {
+                if (response.headers.size > 0) println()
+                val outFile = writeResponseBodyToFile(callName, rb, contentType, config)
+                println("wrote response body to: file://${outFile.canonicalPath}")
+                if (actualCommand == Command.E) {
+                    val editor = config.editor.ifEmpty { System.getenv("EDITOR") ?: "" }
+                    if (editor.isEmpty()) throw RuntimeException("No editor set in ~/.glasnik/glasnik.yml and no EDITOR env var")
+                    execBash(editor, listOf(outFile.canonicalPath), true)
                 }
-                OutputDest.file -> {
-                    if (response.headers.size > 0) println()
-                    val outFile = writeResponseBodyToFile(callName, rb, contentType, config)
-                    println("wrote response body to: file://${outFile.canonicalPath}")
-                }
-                else -> {}
+            } else {
+                if (response.headers.size > 0) println()
+                println(rb)
             }
         }
         var changedWorkspaceConfig = false
@@ -622,6 +637,7 @@ object Glasnik {
 			|glasnik version ${Version.version}
 			|usage:
 			|${BOLD}${YELLOW}glasnik [status]${RESET} - show status (current workspace and vars)
+			|${BOLD}${YELLOW}glasnik config${RESET} - edit the global glasnik configuration file
             |${BOLD}${YELLOW}glasnik use {workspace_name}${RESET} - switch to a workspace (default vars}
             |${BOLD}${YELLOW}glasnik use {workspace_name}.{vars_name}${RESET} - switch to a workspace and vars
             |${BOLD}${YELLOW}glasnik use .{vars_name}${RESET} - switch to vars in the current workspace
@@ -640,6 +656,8 @@ object Glasnik {
             |${BOLD}${YELLOW}glasnik vars${RESET} - list vars in the current workspace
             |${BOLD}${YELLOW}glasnik clear${RESET} - clear extracted vars in the current workspace
 			|${BOLD}${YELLOW}glasnik [call] {call_name} [{body_filename}]${RESET} - issue a call in the current workspace
+			|${BOLD}${YELLOW}glasnik e {call_name} [{body_filename}]${RESET} - issue a call in the current workspace and edit the response body
+			|${BOLD}${YELLOW}glasnik s {call_name} [{body_filename}]${RESET} - issue a call in the current workspace and save response body
             |${BOLD}${YELLOW}glasnik output console|file|none${RESET} - send response body output to a different destination
             |${BOLD}${YELLOW}glasnik help|-h|--help${RESET} - show this message
 		""".trimMargin("|")

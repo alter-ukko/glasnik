@@ -2,6 +2,7 @@ package com.dimdarkevil.glasnik
 
 enum class Command {
     STATUS,
+    CONFIG,
     USE,
     ADD,
     DELETE,
@@ -13,6 +14,8 @@ enum class Command {
     VARS,
     CLEAR,
     CALL,
+    E,
+    S,
     OUTPUT,
     HELP,
 }
