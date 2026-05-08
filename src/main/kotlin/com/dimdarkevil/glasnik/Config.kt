@@ -7,5 +7,7 @@ data class Config(
     var editor: String = System.getenv("EDITOR") ?: "",
     var showCallTimes: Boolean = false,
     var outputDir: String = File(HOME, "glasnik-output").canonicalPath,
-    var outputDest: OutputDest = OutputDest.console
+    var outputDest: OutputDest = OutputDest.console,
+    var readTimeoutSeconds: Int = 30,
+    var writeTimeoutSeconds: Int = 30,
 )

@@ -12,6 +12,7 @@ enum class Command {
     LIST,
     CALLS,
     VARS,
+    BODIES,
     CLEAR,
     CALL,
     E,
