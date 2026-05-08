@@ -21,6 +21,7 @@ import java.io.File
 import java.io.FileReader
 import java.io.FileWriter
 import java.nio.file.Files
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -307,6 +308,7 @@ object Glasnik {
         val bodiesDir = File(File(configDir, config.currentWorkspace), "bodies")
         val vars = loadVars(config.currentWorkspace, workspaceConfig.currentVars)
             .plus(workspaceConfig.extractedVars)
+            .plus("today" to LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE))
         val calls = loadWorkspaceCalls(config.currentWorkspace)
         val call = calls[callName] ?: throw RuntimeException("No call named ${callName} in workspace ${config.currentWorkspace}")
         val url = call.url.substituteVars(vars)
