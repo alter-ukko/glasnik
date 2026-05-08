@@ -11,6 +11,7 @@ If you type `glasnik help` (or `glasnik --help` or `glasnik -h`), you get the fo
 ```
 usage:
 glasnik [status] - show status (current workspace and vars)
+glasnik config - edit the global glasnik configuration file
 glasnik use {workspace_name} - switch to a workspace (default vars}
 glasnik use {workspace_name}.{vars_name} - switch to a workspace and vars
 glasnik use .{vars_name} - switch to vars in the current workspace
@@ -22,11 +23,17 @@ glasnik delete .{vars_name} - delete a vars file in the current workspace
 glasnik edit - edit calls in the current workspace
 glasnik edit {workspace_name}.{vars_name} - edit vars in the specified workspace
 glasnik edit .{vars_name} - edit vars in the current workspace
+glasnik set {var_name} {value} - set the value of a var in the current workspace
 glasnik update - update vars in the current workspace to include anything in calls
 glasnik list - list workspaces
 glasnik calls - list calls in the current workspace
+glasnik vars - list vars in the current workspace
+glasnik bodies - list body files in the current workspace
 glasnik clear - clear extracted vars in the current workspace
-glasnik {call_name} [{body_filename}] - issue a call in the current workspace
+glasnik [call] {call_name} [{body_filename}] - issue a call in the current workspace
+glasnik e {call_name} [{body_filename}] - issue a call in the current workspace and edit the response body
+glasnik s {call_name} [{body_filename}] - issue a call in the current workspace and save response body
+glasnik output console|file|none - send response body output to a different destination
 glasnik help|-h|--help - show this message
 ```
 

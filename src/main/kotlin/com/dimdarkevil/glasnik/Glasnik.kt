@@ -22,6 +22,7 @@ import java.io.FileReader
 import java.io.FileWriter
 import java.nio.file.Files
 import java.time.LocalDate
+import java.time.Duration
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -59,6 +60,7 @@ object Glasnik {
                 Command.LIST -> list(config)
                 Command.CALLS -> calls(config)
                 Command.VARS -> vars(config)
+                Command.BODIES -> bodies(config)
                 Command.CLEAR -> clear(config)
                 Command.HELP -> println(help())
                 Command.CALL, Command.E, Command.S -> {
@@ -292,6 +294,16 @@ object Glasnik {
         }
     }
 
+    private fun bodies(config: Config) {
+        if (config.currentWorkspace.isEmpty()) throw RuntimeException("No current workspace")
+        val workspaceConfig = loadWorkspaceConfig(config.currentWorkspace)
+        val bodiesDir = File(File(configDir, config.currentWorkspace), "bodies")
+        println("${GREEN}${bodiesDir.canonicalPath}${RESET}")
+        bodiesDir.listFiles().forEach {
+            println("${CYAN}${it.name}${RESET}")
+        }
+    }
+
     private fun clear(config: Config) {
         if (config.currentWorkspace.isEmpty()) throw RuntimeException("No current workspace")
         loadWorkspaceConfig(config.currentWorkspace).let { wsConfig ->
@@ -320,7 +332,10 @@ object Glasnik {
         }
         println()
         println("-=-= RESPONSE (${config.currentWorkspace}.${workspaceConfig.currentVars})")
-        val client = OkHttpClient()
+        val client = OkHttpClient.Builder()
+            .readTimeout(Duration.ofSeconds(config.readTimeoutSeconds.toLong()))
+            .writeTimeout(Duration.ofSeconds(config.writeTimeoutSeconds.toLong()))
+            .build()
         val (response, dt) = stopwatch { when (call.method) {
             HttpMethod.GET -> doGet(client, url, headers)
             HttpMethod.PATCH,
@@ -656,6 +671,7 @@ object Glasnik {
             |${BOLD}${YELLOW}glasnik list${RESET} - list workspaces
             |${BOLD}${YELLOW}glasnik calls${RESET} - list calls in the current workspace
             |${BOLD}${YELLOW}glasnik vars${RESET} - list vars in the current workspace
+            |${BOLD}${YELLOW}glasnik bodies${RESET} - list body files in the current workspace
             |${BOLD}${YELLOW}glasnik clear${RESET} - clear extracted vars in the current workspace
 			|${BOLD}${YELLOW}glasnik [call] {call_name} [{body_filename}]${RESET} - issue a call in the current workspace
 			|${BOLD}${YELLOW}glasnik e {call_name} [{body_filename}]${RESET} - issue a call in the current workspace and edit the response body
